@@ -111,27 +111,17 @@ class Game:
         self.stats_height = 3
         self.map_height = screen_height-self.message_height-self.stats_height
         self.map_width = screen_width
-        self.player = Object(self.river, self.upper_buffer, int(self.map_width/2), '@', libtcod.Color(255,255,255), [Traverse(self.river.terrain['rapid'],1), Traverse(self.river.terrain['river'],1),Traverse(self.river.terrain['sand'],0.1),Traverse(self.river.terrain['road'],1)])
+        self.player = Player(self, self.upper_buffer, int(self.map_width/2), '@', libtcod.Color(255,255,255), [Traverse(self.river.terrain['rapid'],0.05), Traverse(self.river.terrain['river'],0.05),Traverse(self.river.terrain['sand'],0.15),Traverse(self.river.terrain['road'],25)])
         self.camera_row = self.player.row - self.upper_buffer
         self.time = 0
         self.map_con = libtcod.console_new(self.map_width, self.map_height)
         self.message_con = libtcod.console_new(self.message_width, self.message_height)
         self.stats_con  = libtcod.console_new(self.stats_width, self.stats_height)
         self.message_log = []
+        self.last_move_time = -10
+        self.max_move_frequency = 3
 
-    def move(self, dr, dc):
-        current_terrain = self.river.grid[self.player.row][self.player.col]
-        
-        self.player.move(dr,dc)
-        
-        new_terrain = self.river.grid[self.player.row][self.player.col]
-        if (current_terrain == self.river.terrain['river'] or current_terrain == self.river.terrain['rapid']) and new_terrain == self.river.terrain['sand']:
-            self.message_log.append(Message("You walk onto the beach.",self.time))
-        elif current_terrain == self.river.terrain['sand'] and new_terrain == self.river.terrain['river']:
-            self.message_log.append(Message("You get back into the river.",self.time))
-        elif current_terrain == self.river.terrain['sand'] and new_terrain == self.river.terrain['rapid']:
-            self.message_log.append(Message("You get back into the river at a rapid point.",self.time))
-        self.camera_row = min(max(self.player.row - self.upper_buffer,0),game.river.length-self.map_height)
+
     
     def draw(self, thing_to_draw, row,col):
         if row >= self.camera_row and row < self.camera_row + self.map_height:
@@ -147,7 +137,7 @@ class Game:
         else:
             rate = 0
         
-        self.move(time_change*rate*self.river.river_speed/self.river.river_cross_sectional_area[self.player.row]/5,0)
+        self.player.move(time_change*rate*self.river.river_speed/self.river.river_cross_sectional_area[self.player.row]/5,0)
     
     
     def render(self):
@@ -174,20 +164,20 @@ class Game:
 
      
         if key.vk == libtcod.KEY_UP:
-            self.move(-1,0)
+            self.player.move(-1,0)
         elif key.vk == libtcod.KEY_DOWN:
-            self.move(1,0)
+            self.player.move(1,0)
         elif key.vk == libtcod.KEY_LEFT:
-            self.move(0,-1)
+            self.player.move(0,-1)
         elif key.vk == libtcod.KEY_RIGHT:
-            self.move(0,1)
+            self.player.move(0,1)
         return(state_list['game'])
 
 class Object:
     #this is a generic object: the player, a monster, an item, the stairs...
     #it's always represented by a character on screen.
-    def __init__(self, river, row, col, char, color, traverse_list):
-        self.river = river
+    def __init__(self, game, row, col, char, color, traverse_list):
+        self.game = game
         self.row = row
         self.col = col
         self.char = char
@@ -212,8 +202,8 @@ class Object:
         else:
             c_dir = 0
         
-        if self.row+r_dir < self.river.length and self.row+r_dir >= 0 and self.col+c_dir < self.river.width and self.col+c_dir >= 0 and self.river.grid[self.row+r_dir][self.col+c_dir] in terrain:
-            speed = self.traverse_list[terrain.index(self.river.grid[self.row][self.col])].speed
+        if self.row+r_dir < self.game.river.length and self.row+r_dir >= 0 and self.col+c_dir < self.game.river.width and self.col+c_dir >= 0 and self.game.river.grid[self.row+r_dir][self.col+c_dir] in terrain:
+            speed = self.traverse_list[terrain.index(self.game.river.grid[self.row][self.col])].speed
             self.row_frac += dr * speed
             self.col_frac += dc * speed
             if abs(self.row_frac) >= 1:
@@ -224,6 +214,17 @@ class Object:
                 self.col += c_dir
                 self.col_frac = 0
 
+class Player(Object):
+    def move(self,dr,dc):
+        current_terrain = self.game.river.grid[self.row][self.col]
+        Object.move(self,dr,dc)
+        new_terrain = self.game.river.grid[self.row][self.col]
+        if (current_terrain == self.game.river.terrain['river'] or current_terrain == self.game.river.terrain['rapid']) and new_terrain == self.game.river.terrain['sand']:
+            self.game.message_log.append(Message("You walk onto the beach.",self.game.time))
+        elif current_terrain == self.game.river.terrain['sand'] and new_terrain == self.game.river.terrain['river']:
+            self.game.message_log.append(Message("You get back into the river.",self.game.time))
+        elif current_terrain == self.game.river.terrain['sand'] and new_terrain == self.game.river.terrain['rapid']:
+            self.game.message_log.append(Message("You get back into the river at a rapid point.",self.game.time))
 
 class Terrain:
     def __init__(self, char, color):
@@ -330,7 +331,6 @@ while not libtcod.console_is_window_closed() and state != state_list['exit']:
         game.time += new_time - current_time
         game.current((new_time - current_time)/10)
         current_time = new_time
-        
         #render the screen
         game.render()
      
