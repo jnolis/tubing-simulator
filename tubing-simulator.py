@@ -19,6 +19,8 @@ class River:
         self.width = width
         self.grid = []
         
+        self.river_speed = random.randint(400,2400)
+        
         min_river_left = width*1/8
         max_river_left = width*3/8
         min_river_right = width*5/8
@@ -62,7 +64,7 @@ class River:
             self.sand_left.append(new_sand_left)
             self.sand_right.append(new_sand_right)
             
-            self.river_cross_sectional_area.append((new_river_right-new_river_left)*new_river_depth)
+            self.river_cross_sectional_area.append((new_river_right-new_river_left)*5*new_river_depth)
         
         # self.rapids = array('I')
         # num_rapids = random.randint(1,self.length/50)
@@ -141,11 +143,11 @@ class Game:
         if space == self.river.terrain['river']:
             rate = 1
         elif space == self.river.terrain['rapid']:
-            rate = 3
+            rate = 1
         else:
             rate = 0
         
-        self.move(time_change*rate*self.river.max_river_cross_sectional_area/self.river.river_cross_sectional_area[self.player.row],0)
+        self.move(time_change*rate*self.river.river_speed/self.river.river_cross_sectional_area[self.player.row]/5,0)
     
     
     def render(self):
@@ -165,10 +167,10 @@ class Game:
         libtcod.console_blit(self.map_con, 0, 0, 0, 0, 0, 0,self.message_height)
         libtcod.console_blit(self.stats_con, 0, 0, 0, 0, 0, 0, self.message_height + self.map_height)
     
-    def handle_keys(self):
+    def handle_keys(self,state_list):
         key = libtcod.console_check_for_keypress()
         if key.vk == libtcod.KEY_ESCAPE:
-            return "TRUE"
+            return state_list['exit']
 
      
         if key.vk == libtcod.KEY_UP:
@@ -179,6 +181,7 @@ class Game:
             self.move(0,-1)
         elif key.vk == libtcod.KEY_RIGHT:
             self.move(0,1)
+        return(state_list['game'])
 
 class Object:
     #this is a generic object: the player, a monster, an item, the stairs...
@@ -237,6 +240,63 @@ class Message:
         self.text = text
         self.timestamp = timestamp
         
+class Intro:
+    def __init__(self,screen_width,screen_height,game):
+        logo_file = open(os.path.join(b'data',b'logo.txt'))
+        self.logo = logo_file.readlines()
+        logo_file.close()
+        self.logo_height = len(self.logo)
+        self.logo_width = max([len(x) for x in self.logo])
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.intro_con = libtcod.console_new(self.screen_width, self.screen_height)
+        self.river_speed = game.river.river_speed
+        if self.river_speed < 800:
+            self.river_string = 'SLOW'
+        elif self.river_speed < 1600:
+            self.river_string = 'DECENT'
+        else:
+            self.river_string = 'FAST'
+        self.option_rows = ['Start at the beginning of the river.','Start at the midpoint of the river.','Cancel the tubing adventure (quit).']
+        self.selected_row = 0
+    
+    def render(self):
+
+        libtcod.console_set_default_foreground(self.intro_con, libtcod.Color(0,255,255))
+        libtcod.console_set_default_background(self.intro_con, libtcod.Color(0,0,0))
+        for i in range(self.logo_height):
+            libtcod.console_print_ex(self.intro_con, max((self.screen_width-self.logo_width)/2,0),i, libtcod.BKGND_NONE, libtcod.LEFT,self.logo[i])
+        
+        libtcod.console_set_default_foreground(self.intro_con, libtcod.Color(255,255,255))        
+        
+        libtcod.console_print_ex(self.intro_con, 5,self.logo_height + 1, libtcod.BKGND_NONE, libtcod.LEFT,'Today the river speed is: ' + self.river_string + '.')
+        
+        for i in range(len(self.option_rows)):
+
+            if i == self.selected_row:
+                libtcod.console_set_default_background(self.intro_con, libtcod.Color(128,128,0))
+            else:
+                libtcod.console_set_default_background(self.intro_con, libtcod.Color(0,0,0))
+            
+            libtcod.console_print_ex(self.intro_con, 5,self.logo_height + 3 + i, libtcod.BKGND_SET, libtcod.LEFT,self.option_rows[i])
+        
+        libtcod.console_blit(self.intro_con, 0, 0, 0, 0, 0, 0, 0)
+    
+    def handle_keys(self,state_list):
+        key = libtcod.console_wait_for_keypress(True)
+        if key.vk == libtcod.KEY_ENTER:
+            if self.selected_row == 0:
+                return state_list['game']
+            elif self.selected_row == 1:
+                return state_list['game']
+            elif self.selected_row == 2:
+                return state_list['exit']
+        elif libtcod.console_is_key_pressed(libtcod.KEY_UP):
+            self.selected_row = max(self.selected_row - 1,0)
+        elif libtcod.console_is_key_pressed(libtcod.KEY_DOWN):
+            self.selected_row = min(self.selected_row + 1,len(self.option_rows)-1)
+        return state
+
 
 #############################################
 # Initialization & Main Loop
@@ -246,20 +306,26 @@ full_width = 80
 full_height = 45
 
 
-libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
-libtcod.console_init_root(full_width, full_height, 'TUBING SIMULATOR 2015', False)
+libtcod.console_set_custom_font(os.path.join(b'data',b'terminal8x12_gs_ro.png'), libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_ASCII_INROW)
+libtcod.console_init_root(full_width, full_height, 'TUBING SIMULATOR', False)
 libtcod.console_disable_keyboard_repeat()
 libtcod.sys_set_fps(30)
 game = Game(full_width,full_height,100)
+intro = Intro(full_width,full_height,game)
+
+state_list = dict(game=game,intro=intro,exit='exit')
 
 
-
-
-state = 'in_game'
+state = intro
 current_time = time.time()
 
-while not libtcod.console_is_window_closed():
-    if state == 'in_game':
+while not libtcod.console_is_window_closed() and state != state_list['exit']:
+    if state == intro:
+        intro.render()
+        libtcod.console_flush()
+        state = intro.handle_keys(state_list)
+
+    elif state == game:
         new_time = time.time()
         game.time += new_time - current_time
         game.current((new_time - current_time)/10)
@@ -271,9 +337,6 @@ while not libtcod.console_is_window_closed():
         libtcod.console_flush()
      
         #handle keys and exit game if needed
-        exit = game.handle_keys()
-        if exit:
-            state = "paused"
-            break
+        state = game.handle_keys(state_list)
     
     
