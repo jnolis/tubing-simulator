@@ -19,8 +19,8 @@ class River:
         self.width = width
         self.grid = []
         
-        self.river_speed = random.randint(400,2400)
-        
+        #self.river_speed = random.randint(400,2400)
+        self.river_speed = min(max(random.gauss(1000,250),250),1750)
         min_river_left = width*1/8
         max_river_left = width*3/8
         min_river_right = width*5/8
@@ -252,12 +252,16 @@ class Intro:
         self.screen_height = screen_height
         self.intro_con = libtcod.console_new(self.screen_width, self.screen_height)
         self.river_speed = game.river.river_speed
-        if self.river_speed < 800:
+        if self.river_speed < 500:
+            self.river_string = 'VERY SLOW'
+        if self.river_speed < 750:
             self.river_string = 'SLOW'
-        elif self.river_speed < 1600:
+        elif self.river_speed < 1250:
             self.river_string = 'DECENT'
-        else:
+        elif self.river_speed < 1500:
             self.river_string = 'FAST'
+        else:
+            self.river_string = 'VERY FAST'
         self.option_rows = ['Start at the beginning of the river.','Start at the midpoint of the river.','Cancel the tubing adventure (quit).']
         self.selected_row = 0
     
