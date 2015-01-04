@@ -12,91 +12,136 @@ class River:
         self.terrain['grass'] = Terrain('x',libtcod.Color(0, 128, 0))
         self.terrain['sand'] = Terrain('*',libtcod.Color(255, 255, 128))
         self.terrain['river'] = Terrain('~',libtcod.Color(0,0,255))
+        self.terrain['shallow_river'] = Terrain('+',libtcod.Color(0,128,255))
         self.terrain['rapid'] = Terrain('%',libtcod.Color(255,255,255))
         self.terrain['road'] = Terrain('.',libtcod.Color(128,128,128))
+        
+        self.speed = min(max(random.gauss(1000,250),250),1750)
+        self.cross_sectional_area = array('f')
         
         self.length = length
         self.width = width
         self.grid = []
+        self.depth = []
         
-        #self.river_speed = random.randint(400,2400)
-        self.river_speed = min(max(random.gauss(1000,250),250),1750)
-        min_river_left = width*1/8
-        max_river_left = width*3/8
-        min_river_right = width*5/8
-        max_river_right = width*7/8
-        min_river_depth = 2
-        max_river_depth = 10
         
-        self.max_river_cross_sectional_area = max_river_depth * (max_river_right-min_river_left)
         
-        self.river_left = array('I')
-        self.river_right = array('I')
-        self.river_depth = array('I')
-        self.river_cross_sectional_area = array('I')
-        self.sand_left = array('I')
-        self.sand_right = array('I')
+        ds_n = int(2**math.ceil(math.log(self.width)/math.log(2)))
+        ds_n_col = int(ds_n+1)
+        ds_n_row = int(math.ceil(self.length/float(ds_n))*ds_n+1)
         
-        self.river_left.append(random.randint(min_river_left,max_river_left))
-        self.river_right.append(random.randint(min_river_right,max_river_right))
-        self.river_depth.append(random.randint(min_river_depth,max_river_depth))
-        self.sand_left.append(random.randint(0,self.river_left[0]))
-        self.sand_right.append(random.randint(self.river_right[0],width-1))
-        self.river_cross_sectional_area.append((self.river_right[0]-self.river_left[0])*self.river_depth[0])
-                
-        for row in range(1,length):
-            river_left_shift = random.randint(-1,1)
-            river_right_shift = random.randint(-1,1)
-            river_depth_shift = random.randint(-1,1)
-            
-            sand_left_shift = random.randint(-1,1)
-            sand_right_shift = random.randint(-1,1)
-            
-            new_river_left = min(max(self.river_left[-1]+river_left_shift,min_river_left),max_river_left)
-            new_river_right = min(max(self.river_right[-1]+river_right_shift,min_river_right),max_river_right)
-            new_river_depth = min(max(self.river_depth[-1]+river_depth_shift,min_river_depth),max_river_depth)
-            new_sand_left = min(max(0,self.sand_left[-1]+sand_left_shift),new_river_left)
-            new_sand_right = min(max(new_river_right,self.sand_right[-1]+sand_right_shift),width-1)
-            
-            self.river_left.append(new_river_left)
-            self.river_right.append(new_river_right)
-            self.river_depth.append(new_river_depth)
-            self.sand_left.append(new_sand_left)
-            self.sand_right.append(new_sand_right)
-            
-            self.river_cross_sectional_area.append((new_river_right-new_river_left)*5*new_river_depth)
-        
-        # self.rapids = array('I')
-        # num_rapids = random.randint(1,self.length/50)
-        # for i in range(0,num_rapids):
-            # rapid_length = random.randint(1,10)
-            # rapid_start = random.randint(0,self.length)
-            # self.rapids.extend(range(rapid_start,rapid_start+rapid_length))
 
-        for row in range(0,length):
-            new_row = []
-            for col in range(0,width):  
-                if col < self.sand_left[row]:
-                    if row < 12 and row >= 6:
-                        new_row.append(self.terrain['road'])
-                    else:
-                        new_row.append(self.terrain['grass'])
-                elif col < self.river_left[row]:
-                    new_row.append(self.terrain['sand'])
-                elif col < self.river_right[row]:
-                    if self.river_cross_sectional_area[row] < 150 and self.river_depth[row] < 4:
-                        new_row.append(self.terrain['rapid'])
-                    else:
-                        new_row.append(self.terrain['river'])
-                elif col < self.sand_right[row]:
-                    new_row.append(self.terrain['sand'])
-                else:
-                    if row < self.length - 6 and row >= self.length - 12:
-                        new_row.append(self.terrain['road'])
-                    else:
-                        new_row.append(self.terrain['grass'])
-            self.grid.append(new_row)
         
+        ds_grid = []
+        ds_is_set = []
+        ds_h = []
+        for r in range(ds_n_row):
+            temp_grid = []
+            temp_is_set = []
+            temp_h = []
+            for c in range(ds_n_col):
+                temp_grid.append(0.0)
+                temp_is_set.append(False)
+                temp_h.append(0.5+abs(0.5-float(c)/(ds_n_col-1)))
+            ds_grid.append(temp_grid)
+            ds_is_set.append(temp_is_set)
+            ds_h.append(temp_h)
+        
+        ds_current_n = ds_n/2
+        
+        for r in range(0,ds_n_row,ds_current_n):
+            for c in range(0,ds_n_col,ds_current_n):
+                if c == ds_current_n:
+                    ds_grid[r][c] = random.randint(-20,-5)
+                else:
+                    ds_grid[r][c] = random.randint(5,10)
+                ds_is_set[r][c] = True
+        
+        while not all([all(x) for x in ds_is_set]):
+            ds_is_set_temp = [list(a) for a in ds_is_set]
+            ds_current_n = ds_current_n/2
+            for r in range(0,ds_n_row,ds_current_n):
+                for c in range(0,ds_n_col,ds_current_n):
+                    if not ds_is_set[r][c]:
+                        temp_sum = 0
+                        temp_count = 0
+                        for neighbor_r in [-ds_current_n,0,ds_current_n]:
+                            for neighbor_c in [-ds_current_n,0,ds_current_n]:
+                                if neighbor_r != neighbor_c and \
+                                    neighbor_r + r >= 0 and neighbor_r + r < ds_n_row and \
+                                    neighbor_c + c >= 0 and neighbor_c + c < ds_n_col and \
+                                    ds_is_set[neighbor_r + r][neighbor_c + c]:
+                                    
+                                    temp_sum += ds_grid[neighbor_r + r][neighbor_c + c]
+                                    temp_count += 1
+                        
+                        ds_grid[r][c] = temp_sum/temp_count+ ds_h[r][c]*(random.random()-0.5)*ds_current_n
+                        ds_is_set_temp[r][c] = True
+            
+            for r in range(ds_n_row):
+                for c in range(ds_n_col):
+                   ds_is_set[r][c] = ds_is_set[r][c] or ds_is_set_temp[r][c]
+        
+        
+        interp_idx = [(ds_n_col-1)/float(self.width-1)*x for x in range(self.width)]
+        for r in range(self.length):
+            temp_depth = []
+            for c in range(self.width):
+                prev = int(max(math.floor(interp_idx[c]),0))
+                next = int(min(math.ceil(interp_idx[c]),ds_n_col-1))
+                frac = interp_idx[c] % 1
+                temp_depth.append(ds_grid[r][prev]*(1-frac) + ds_grid[r][next]*frac)
+            self.depth.append(temp_depth)
+        
+        is_river = []
+        for r in range(self.length):
+            temp_is_river = []
+            for c in range(self.width):
+                temp_is_river.append(False)
+            is_river.append(temp_is_river)
+        
+        is_river_needs_update = []
+        for c in range(self.width):
+            if self.depth[0][c] < 0:
+                is_river_needs_update.append([0,c])
+        
+        while len(is_river_needs_update) > 0:
+            x = is_river_needs_update.pop()
+            r = x[0]
+            c = x[1]
+            if r-1 >= 0          and not is_river[r-1][c] and self.depth[r-1][c] < 0:
+                is_river[r-1][c] = True
+                is_river_needs_update.append([r-1,c])
+            if r+1 < self.length and not is_river[r+1][c] and self.depth[r+1][c] < 0:
+                is_river[r+1][c] = True
+                is_river_needs_update.append([r+1,c])
+            if c-1 >= 0          and not is_river[r][c-1] and self.depth[r][c-1] < 0:
+                is_river[r][c-1] = True
+                is_river_needs_update.append([r,c-1])
+            if c+1 < self.width  and not is_river[r][c+1] and self.depth[r][c+1] < 0:
+                is_river[r][c+1] = True
+                is_river_needs_update.append([r,c+1])
+        
+        for r in range(self.length):
+            self.cross_sectional_area.append(-sum([self.depth[r][c]*is_river[r][c]*5 for c in range(self.width)]))
+        for r in range(self.length):
+            temp_grid = []
+            for c in range(self.width):
+                temp_depth = self.depth[r][c]
+                if not is_river[r][c]:
+                    if temp_depth > 5:
+                        terrain = self.terrain['grass']
+                    else:
+                        terrain = self.terrain['sand']
+                else:
+                    if temp_depth > -8 and float(self.speed)/self.cross_sectional_area[r] > 1:
+                        terrain = self.terrain['rapid']
+                    elif temp_depth > -2:
+                        terrain = self.terrain['shallow_river']
+                    else:
+                        terrain = self.terrain['river']
+                temp_grid.append(terrain)
+            self.grid.append(temp_grid)
 
 
 class Game:
@@ -111,7 +156,18 @@ class Game:
         self.stats_height = 3
         self.map_height = screen_height-self.message_height-self.stats_height
         self.map_width = screen_width
-        self.player = Player(self, self.upper_buffer, int(self.map_width/2), '@', libtcod.Color(255,255,255), [Traverse(self.river.terrain['rapid'],0.05), Traverse(self.river.terrain['river'],0.05),Traverse(self.river.terrain['sand'],0.15),Traverse(self.river.terrain['road'],25)])
+        # self.player = Player(self, self.upper_buffer, int(self.map_width/2), '@', libtcod.Color(255,255,255), \
+            # [Traverse(self.river.terrain['rapid'],0.05), \
+            # Traverse(self.river.terrain['river'],0.05),  \
+            # Traverse(self.river.terrain['sand'],0.15),   \
+            # Traverse(self.river.terrain['road'],1), \
+            # Traverse(self.river.terrain['shallow_river'],0.10)])
+        self.player = Player(self, self.upper_buffer, int(self.map_width/2), '@', libtcod.Color(255,255,255), \
+            [Traverse(self.river.terrain['rapid'],1), \
+            Traverse(self.river.terrain['river'],1),  \
+            Traverse(self.river.terrain['sand'],1),   \
+            Traverse(self.river.terrain['road'],1), \
+            Traverse(self.river.terrain['shallow_river'],1)])
         self.camera_row = self.player.row - self.upper_buffer
         self.time = 0
         self.map_con = libtcod.console_new(self.map_width, self.map_height)
@@ -120,7 +176,6 @@ class Game:
         self.message_log = []
         self.last_move_time = -10
         self.max_move_frequency = 3
-
 
     
     def draw(self, thing_to_draw, row,col):
@@ -137,9 +192,8 @@ class Game:
         else:
             rate = 0
         
-        self.player.move(time_change*rate*self.river.river_speed/self.river.river_cross_sectional_area[self.player.row]/5,0)
-    
-    
+        self.player.move(time_change*rate*self.river.speed/self.river.cross_sectional_area[self.player.row]/5,0)
+        
     def render(self):
         for row in range(self.camera_row,self.camera_row+self.map_height):
             for col in range(self.map_width):
@@ -219,12 +273,15 @@ class Player(Object):
         current_terrain = self.game.river.grid[self.row][self.col]
         Object.move(self,dr,dc)
         new_terrain = self.game.river.grid[self.row][self.col]
-        if (current_terrain == self.game.river.terrain['river'] or current_terrain == self.game.river.terrain['rapid']) and new_terrain == self.game.river.terrain['sand']:
+        if (current_terrain == self.game.river.terrain['river'] or \
+            current_terrain == self.game.river.terrain['rapid']) and new_terrain == self.game.river.terrain['sand']:
             self.game.message_log.append(Message("You walk onto the beach.",self.game.time))
         elif current_terrain == self.game.river.terrain['sand'] and new_terrain == self.game.river.terrain['river']:
             self.game.message_log.append(Message("You get back into the river.",self.game.time))
         elif current_terrain == self.game.river.terrain['sand'] and new_terrain == self.game.river.terrain['rapid']:
             self.game.message_log.append(Message("You get back into the river at a rapid point.",self.game.time))
+        
+        self.game.camera_row = self.row - self.game.upper_buffer
 
 class Terrain:
     def __init__(self, char, color):
@@ -251,14 +308,14 @@ class Intro:
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.intro_con = libtcod.console_new(self.screen_width, self.screen_height)
-        self.river_speed = game.river.river_speed
-        if self.river_speed < 500:
+        self.speed = game.river.speed
+        if self.speed < 500:
             self.river_string = 'VERY SLOW'
-        if self.river_speed < 750:
+        if self.speed < 750:
             self.river_string = 'SLOW'
-        elif self.river_speed < 1250:
+        elif self.speed < 1250:
             self.river_string = 'DECENT'
-        elif self.river_speed < 1500:
+        elif self.speed < 1500:
             self.river_string = 'FAST'
         else:
             self.river_string = 'VERY FAST'
@@ -315,7 +372,7 @@ libtcod.console_set_custom_font(os.path.join(b'data',b'terminal8x12_gs_ro.png'),
 libtcod.console_init_root(full_width, full_height, 'TUBING SIMULATOR', False)
 libtcod.console_disable_keyboard_repeat()
 libtcod.sys_set_fps(30)
-game = Game(full_width,full_height,100)
+game = Game(full_width,full_height,600)
 intro = Intro(full_width,full_height,game)
 
 state_list = dict(game=game,intro=intro,exit='exit')
