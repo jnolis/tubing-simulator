@@ -15,6 +15,8 @@ class River:
         self.terrain['shallow_river'] = Terrain('+',libtcod.Color(0,128,255))
         self.terrain['rapid'] = Terrain('%',libtcod.Color(255,255,255))
         self.terrain['road'] = Terrain('.',libtcod.Color(128,128,128))
+        self.terrain['tree'] = Terrain('T',libtcod.Color(128,128,128))
+        self.terrain['bush'] = Terrain('B',libtcod.Color(128,128,128))
         
         self.speed = min(max(random.gauss(1000,250),250),1750)
         self.cross_sectional_area = array('f')
